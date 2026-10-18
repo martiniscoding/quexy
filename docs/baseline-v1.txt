@@ -1,0 +1,11 @@
+   QUERY PLAN                                                  
+-------------------------------------------------------------------------------------------------------------
+ Limit  (cost=15.26..15.27 rows=1 width=238) (actual time=0.060..0.060 rows=1 loops=1)
+   ->  Sort  (cost=15.26..15.27 rows=1 width=238) (actual time=0.059..0.059 rows=1 loops=1)
+         Sort Key: priority DESC, id
+         Sort Method: top-N heapsort  Memory: 25kB
+         ->  Seq Scan on jobs  (cost=0.00..15.25 rows=1 width=238) (actual time=0.010..0.011 rows=3 loops=1)
+               Filter: ((status = 'pending'::job_status) AND (run_at <= now()))
+ Planning Time: 0.730 ms
+ Execution Time: 0.125 ms
+(8 rows)

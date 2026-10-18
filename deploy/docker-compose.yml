@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: quexy-pg
+    environment:
+      POSTGRES_USER: quexy
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: quexy
+    ports:
+      - "5432:5432"
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=512MB
+      -c log_min_duration_statement=100ms
+      -c log_lock_waits=on
+      -c deadlock_timeout=1s
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quexy -d quexy"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

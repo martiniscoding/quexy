@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Bowling Alley</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        h1 { margin: 10px 0; }
+
+        #game-container {
+            position: relative;
+            border: 4px solid #444;
+            border-radius: 10px;
+            background: #2c3e50;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        canvas {
+            background: linear-gradient(to bottom, #34495e 0%, #2c3e50 100%);
+            display: block;
+            cursor: crosshair;
+        }
+
+        .ui {
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        .stats {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        button:hover { background: #c0392b; }
+        button:active { transform: scale(0.95); }
+        button:disabled { background: #7f8c8d; }
+
+        .instructions {
+            color: #bdc3c7;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>BOWLING ALLEY</h1>
+    
+    <div id="game-container">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+    </div>
+
+    <div class="ui">
+        <div class="stats">Score: <span id="score">0</span></div>
+        <button id="bowlBtn">RELEASE BALL</button>
+        <div class="instructions">Drag or click to set power/angle & Click "Release"</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const bowlBtn = document.getElementById('bowlBtn');
+
+        // Game Settings
+        const gravity = 0.2;
+        const friction = 0.98;
+        let score = 0;
+        let isGameOver = false;
+
+        // Ball properties
+        let ball = {
+            x: 200,
+            y: 550,
+            radius: 15,
+            vx: 0,
+            vy: 0,
+            active: false,
+            color: '#ecf0f1'
+        };
+
+        // Pins properties
+        let pins = [];
+        function initPins() {
+            pins = [];
+            const startX = 200;
+            const startY = 100;
+            const rowSpacing = 30;
+            
+            // Create 4 rows of pins (Triangle formation)
+            for (let row = 0; row < 4; row++) {
+                for (let i = 0; i <= row; i++) {
+                    pins.push({
+                        x: startX + (i - row / 2) * 25,
+                        y: startY + row * rowSpacing,
+                        vx: 0,
+                        vy: 0,
+                        radius: 10,
+                        fallen: false
+                    });
+                }
+            }
+        }
+
+        // Input Handling
+        let mouseX = 200;
+        let mouseY = 550;
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+
+        bowlBtn.addEventListener('click', () => {
+            if (!ball.active && !isGameOver) {
+                // Calculate velocity based on mouse distance from center
+                ball.vx = (mouseX - 200) * 0.1;
+                ball.vy = (mouseY - 550) * 0.1;
+                ball.active = true;
+                bowlBtn.disabled = true;
+            } else if (isGameOver) {
+                resetGame();
+            }
+        });
+
+        function resetGame() {
+            score = 0;
+            scoreEl.innerText = score;
+            ball.active = false;
+            ball.x = 200;
+            ball.y = 550;
+            ball.vx = 0;
+            ball.vy = 0;
+            isGameOver = false;
+            bowlBtn.disabled = false;
+            initPins();
+        }
+
+        function update() {
+            if (ball.active) {
+                ball.vy += gravity;
+                ball.x += ball.vx;
+                ball.y += ball.vy;
+                ball.vx *= friction;
+
+                // Wall Collisions
+                if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
+                    ball.vx *= -0.7;
+                    ball.x = ball.x < ball.radius ? ball.radius : canvas.width - ball.radius;
+                }
+
+                // Floor Collision
+                if (ball.y + ball.radius > canvas.height) {
+                    ball.y = canvas.height - ball.radius;
+                    ball.vy *= -0.5; // Bounce
+                    ball.vx *= 0.95; // Ground friction
+                    
+                    // Stop ball if slow enough
+                    if (Math.abs(ball.vx) < 0.1) {
+                        ball.active = false;
+                        checkWinCondition();
+                    }
+                }
+
+                // Ball to Pin Collisions
+                pins.forEach(pin => {
+                    const dx = ball.x - pin.x;
+                    const dy = ball.y - pin.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < ball.radius + pin.radius) {
+                        // Physics: Elastic Collision
+                        const angle = Math.atan2(dy, dx);
+                        const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+                        
+                        pin.vx = Math.cos(angle) * speed * 0.8;
+                        pin.vy = Math.sin(angle) * speed * 0.8;
+                        
+                        // Push ball back slightly
+                        ball.vx -= Math.cos(angle) * 1.5;
+                        ball.vy -= Math.sin(angle) * 1.5;
+                        
+                        pin.fallen = true;
+                    }
+                });
+            }
+
+            // Update Pins
+            pins.forEach(pin => {
+                if (pin.fallen) {
+                    pin.x += pin.vx;
+                    pin.y += pin.vy;
+                    pin.vy += gravity;
+                    pin.vx *= friction;
+                    
+                    // If pin falls off screen, it's a point
+                    if (pin.y > canvas.height) {
+                        pin.fallen = false; // Reset for next turn
+                        score += 10;
+                        scoreEl.innerText = score;
+                    }
+                }
+            });
+        }
+
+        function checkWinCondition() {
+            if (ball.y > canvas.height - 50) {
+                // Logic could go here to end frame
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Lane
+            ctx.fillStyle = '#3e5661';
+            ctx.fillRect(50, 0, 300, 600);
+            
+            // Draw Pins
+            pins.forEach(pin => {
+                ctx.beginPath();
+                ctx.arc(pin.x, pin.y, pin.radius, 0, Math.PI * 2);
+                ctx.fillStyle = pin.fallen ? '#7f8c8d' : '#f1c40f';
+                ctx.fill();
+                ctx.closePath();
+            });
+
+            // Draw Ball
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = ball.active ? '#ecf0f1' : '#bdc3c7';
+            ctx.fill();
+            ctx.closePath();
+
+            // Aiming Line (Visual Only)
+            if (!ball.active && !isGameOver) {
+                ctx.beginPath();
+                ctx.moveTo(ball.x, ball.y);
+                ctx.lineTo(mouseX, mouseY);
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.setLineDash([5, 5]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            update();
+            requestAnimationFrame(draw);
+        }
+
+        initPins();
+        draw();
+    </script>
+</body>
+</html>
